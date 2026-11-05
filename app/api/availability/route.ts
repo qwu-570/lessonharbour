@@ -2,7 +2,7 @@ import { and, asc, eq, gt, lt, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import { availabilitySlots, bookings } from "@/db/schema";
 import { ApiError, assertSameOrigin, enforceRateLimit, handleApiError, integerValue, isoDateValue, json, readJson, requireAccount } from "@/lib/api";
-import { buildWeeklyWindows, validateLessonWindow } from "@/lib/rules";
+import { buildAvailabilityWindows, recurrencePatterns, validateLessonWindow } from "@/lib/rules";
 
 export const dynamic = "force-dynamic";
 
@@ -28,14 +28,15 @@ export async function POST(request: Request) {
     assertSameOrigin(request);
     const { account } = await requireAccount("tutor");
     await enforceRateLimit(account.id, "availability", 20, 300);
-    const body = await readJson<{ startsAt?: unknown; durationMinutes?: unknown; repeatWeeks?: unknown; timeZone?: unknown }>(request);
+    const body = await readJson<{ startsAt?: unknown; durationMinutes?: unknown; recurrence?: unknown; timeZone?: unknown }>(request);
     const startsAt = isoDateValue(body.startsAt, "Start time");
     const durationMinutes = integerValue(body.durationMinutes, "Lesson duration", 30, 180);
     if (durationMinutes % 15 !== 0) throw new ApiError(400, "Lesson duration must use 15-minute intervals");
-    const repeatWeeks = integerValue(body.repeatWeeks, "Repeat weeks", 1, 12);
+    const recurrence = typeof body.recurrence === "string" && recurrencePatterns.includes(body.recurrence as (typeof recurrencePatterns)[number]) ? body.recurrence as (typeof recurrencePatterns)[number] : null;
+    if (!recurrence) throw new ApiError(400, "Invalid repeat pattern");
     const timeZone = typeof body.timeZone === "string" ? body.timeZone.slice(0, 100) : "UTC";
     try { new Intl.DateTimeFormat("en-GB", { timeZone }); } catch { throw new ApiError(400, "Invalid time zone"); }
-    const windows = buildWeeklyWindows(startsAt, durationMinutes, repeatWeeks, timeZone);
+    const windows = buildAvailabilityWindows(startsAt, durationMinutes, recurrence, timeZone);
     for (const window of windows) {
       const timeError = validateLessonWindow(window.startsAt, window.endsAt);
       if (timeError) throw new ApiError(400, timeError);

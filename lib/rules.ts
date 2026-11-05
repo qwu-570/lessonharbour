@@ -55,6 +55,29 @@ export function buildWeeklyWindows(start: Date, durationMinutes: number, repeatW
   });
 }
 
+export const recurrencePatterns = ["once", "weekly_4", "weekly_8", "weekly_12", "weekdays_month", "weekends_month"] as const;
+export type RecurrencePattern = (typeof recurrencePatterns)[number];
+
+export function buildAvailabilityWindows(start: Date, durationMinutes: number, recurrence: RecurrencePattern, timeZone: string) {
+  if (recurrence === "once") return buildWeeklyWindows(start, durationMinutes, 1, timeZone);
+  if (recurrence.startsWith("weekly_")) return buildWeeklyWindows(start, durationMinutes, Number(recurrence.split("_")[1]), timeZone);
+
+  const localStart = zonedParts(start, timeZone);
+  const firstDay = Date.UTC(localStart.year, localStart.month - 1, localStart.day);
+  const end = new Date(firstDay);
+  end.setUTCMonth(end.getUTCMonth() + 1);
+  const windows: Array<{ startsAt: Date; endsAt: Date }> = [];
+  for (let cursor = firstDay; cursor < end.getTime(); cursor += 24 * 60 * 60_000) {
+    const date = new Date(cursor);
+    const day = date.getUTCDay();
+    const matches = recurrence === "weekdays_month" ? day >= 1 && day <= 5 : day === 0 || day === 6;
+    if (!matches) continue;
+    const startsAt = zonedDateTimeToUtc({ year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: date.getUTCDate(), hour: localStart.hour, minute: localStart.minute }, timeZone);
+    windows.push({ startsAt, endsAt: new Date(startsAt.getTime() + durationMinutes * 60_000) });
+  }
+  return windows;
+}
+
 export function canRespondToBooking(current: string, next: string) {
   return current === "pending" && bookingResponses.includes(next as (typeof bookingResponses)[number]);
 }

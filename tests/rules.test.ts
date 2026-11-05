@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildWeeklyWindows, canRespondToBooking, validateLessonWindow, zonedDateTimeToUtc } from "../lib/rules.ts";
+import { buildAvailabilityWindows, buildWeeklyWindows, canRespondToBooking, validateLessonWindow, zonedDateTimeToUtc } from "../lib/rules.ts";
 
 test("accepts a valid future lesson window", () => {
   const now = new Date("2026-11-05T12:00:00.000Z");
@@ -38,6 +38,20 @@ test("keeps repeated lessons at the same local time across daylight-saving chang
   const start = zonedDateTimeToUtc({ year: 2026, month: 10, day: 18, hour: 17, minute: 0 }, "Europe/London");
   const windows = buildWeeklyWindows(start, 60, 3, "Europe/London");
   assert.deepEqual(windows.map(window => window.startsAt.toISOString()), ["2026-10-18T16:00:00.000Z", "2026-10-25T17:00:00.000Z", "2026-11-01T17:00:00.000Z"]);
+});
+
+test("builds weekday-only daily slots for one calendar month", () => {
+  const start = zonedDateTimeToUtc({ year: 2026, month: 11, day: 5, hour: 17, minute: 15 }, "Europe/London");
+  const windows = buildAvailabilityWindows(start, 60, "weekdays_month", "Europe/London");
+  assert.equal(windows.length, 22);
+  assert.equal(windows.every(window => { const day = window.startsAt.getUTCDay(); return day >= 1 && day <= 5; }), true);
+});
+
+test("builds weekend-only daily slots for one calendar month", () => {
+  const start = zonedDateTimeToUtc({ year: 2026, month: 11, day: 5, hour: 17, minute: 15 }, "Europe/London");
+  const windows = buildAvailabilityWindows(start, 60, "weekends_month", "Europe/London");
+  assert.equal(windows.length, 8);
+  assert.equal(windows.every(window => { const day = window.startsAt.getUTCDay(); return day === 0 || day === 6; }), true);
 });
 
 test("only pending bookings can be accepted or rejected", () => {
