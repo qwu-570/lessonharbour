@@ -82,6 +82,33 @@ export function integerValue(value: unknown, name: string, min: number, max: num
   return Number(value);
 }
 
+export function optionalHttpsUrl(value: unknown, name: string, max = 500) {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string" || value.length > max) throw new ApiError(400, `${name} must be a valid HTTPS URL`);
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== "https:") throw new Error("HTTPS required");
+    return url.toString();
+  } catch {
+    throw new ApiError(400, `${name} must be a valid HTTPS URL`);
+  }
+}
+
+export function stringList(value: unknown, name: string, maxItems = 8, maxLength = 40) {
+  if (!Array.isArray(value) || value.length > maxItems) throw new ApiError(400, `${name} must contain no more than ${maxItems} items`);
+  const cleaned = value.map((item) => textValue(item, name, 2, maxLength));
+  return [...new Set(cleaned)];
+}
+
+export function parseStringList(value: string) {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 export function enumValue<T extends string>(value: unknown, name: string, allowed: readonly T[]): T {
   if (typeof value !== "string" || !allowed.includes(value as T)) throw new ApiError(400, `Invalid ${name}`);
   return value as T;

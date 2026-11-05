@@ -8,6 +8,13 @@
       "when": 1793880581130,
       "tag": "0000_silly_triton",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1793881509485,
+      "tag": "0001_sticky_mystique",
+      "breakpoints": true
     }
   ]
 }

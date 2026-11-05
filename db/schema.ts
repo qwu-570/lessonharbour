@@ -17,6 +17,8 @@ export const tutorProfiles = sqliteTable("tutor_profiles", {
   hourlyPrice: integer("hourly_price").notNull(),
   lessonFormat: text("lesson_format", { enum: ["online", "in_person", "both"] }).notNull(),
   generalLocation: text("general_location"),
+  profilePhotoUrl: text("profile_photo_url"),
+  languages: text("languages").notNull().default("[]"),
   isPublished: integer("is_published", { mode: "boolean" }).notNull().default(false),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });

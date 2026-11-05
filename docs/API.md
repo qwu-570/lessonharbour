@@ -14,6 +14,8 @@ All responses are JSON. Authenticated endpoints use the visitor's hosting-platfo
 - `POST /api/tutor-profile` creates or replaces the authenticated tutor's profile.
 - `PATCH /api/tutor-profile` updates the authenticated tutor's profile.
 
+Tutor profile payloads support `profilePhotoUrl` (a public HTTPS URL or `null`) and `languages` (up to eight language names). Published tutor responses include both fields.
+
 ## Availability
 
 - `GET /api/availability` lists the authenticated tutor's slots.

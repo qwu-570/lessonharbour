@@ -1,7 +1,7 @@
 import { and, eq, like } from "drizzle-orm";
 import { getDb } from "@/db";
 import { tutorProfiles, users } from "@/db/schema";
-import { handleApiError, json } from "@/lib/api";
+import { handleApiError, json, parseStringList } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +19,10 @@ export async function GET(request: Request) {
       hourlyPrice: tutorProfiles.hourlyPrice,
       lessonFormat: tutorProfiles.lessonFormat,
       generalLocation: tutorProfiles.generalLocation,
+      profilePhotoUrl: tutorProfiles.profilePhotoUrl,
+      languages: tutorProfiles.languages,
     }).from(tutorProfiles).innerJoin(users, eq(users.id, tutorProfiles.userId)).where(condition).limit(100);
-    return json({ tutors });
+    return json({ tutors: tutors.map((tutor) => ({ ...tutor, languages: parseStringList(tutor.languages) })) });
   } catch (error) {
     return handleApiError(error);
   }

@@ -7,6 +7,7 @@ LessonHarbour is an open-source tutor discovery and lesson-booking MVP. It suppo
 - Sign in with ChatGPT and persistent account onboarding
 - Student and tutor role-based authorisation
 - Published tutor profiles and subject filtering
+- Tutor profile photos and spoken-language badges
 - Tutor availability management
 - Student booking requests
 - Tutor accept or reject workflow

@@ -21,7 +21,7 @@ Authentication is supplied by the hosting platform through verified identity hea
 ## Data model
 
 - `users`: stable identity, display name, email and application role
-- `tutor_profiles`: subject, biography, price, format, location and publication state
+- `tutor_profiles`: subject, biography, price, format, location, profile photo URL, spoken languages and publication state
 - `availability_slots`: tutor-owned start and end times
 - `bookings`: student, tutor, slot and status
 - `rate_limits`: bounded counters for authenticated write operations
