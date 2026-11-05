@@ -28,12 +28,14 @@ export async function POST(request: Request) {
     assertSameOrigin(request);
     const { account } = await requireAccount("tutor");
     await enforceRateLimit(account.id, "availability", 20, 300);
-    const body = await readJson<{ startsAt?: unknown; durationMinutes?: unknown; repeatWeeks?: unknown }>(request);
+    const body = await readJson<{ startsAt?: unknown; durationMinutes?: unknown; repeatWeeks?: unknown; timeZone?: unknown }>(request);
     const startsAt = isoDateValue(body.startsAt, "Start time");
     const durationMinutes = integerValue(body.durationMinutes, "Lesson duration", 30, 180);
     if (durationMinutes % 15 !== 0) throw new ApiError(400, "Lesson duration must use 15-minute intervals");
     const repeatWeeks = integerValue(body.repeatWeeks, "Repeat weeks", 1, 12);
-    const windows = buildWeeklyWindows(startsAt, durationMinutes, repeatWeeks);
+    const timeZone = typeof body.timeZone === "string" ? body.timeZone.slice(0, 100) : "UTC";
+    try { new Intl.DateTimeFormat("en-GB", { timeZone }); } catch { throw new ApiError(400, "Invalid time zone"); }
+    const windows = buildWeeklyWindows(startsAt, durationMinutes, repeatWeeks, timeZone);
     for (const window of windows) {
       const timeError = validateLessonWindow(window.startsAt, window.endsAt);
       if (timeError) throw new ApiError(400, timeError);

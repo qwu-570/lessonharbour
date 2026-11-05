@@ -11,9 +11,46 @@ export function validateLessonWindow(start: Date, end: Date, now = new Date()) {
   return null;
 }
 
-export function buildWeeklyWindows(start: Date, durationMinutes: number, repeatWeeks: number) {
+export type LocalDateTime = { year: number; month: number; day: number; hour: number; minute: number };
+
+function zonedParts(date: Date, timeZone: string): LocalDateTime {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value);
+  return { year: value("year"), month: value("month"), day: value("day"), hour: value("hour"), minute: value("minute") };
+}
+
+export function zonedDateTimeToUtc(local: LocalDateTime, timeZone: string) {
+  let timestamp = Date.UTC(local.year, local.month - 1, local.day, local.hour, local.minute);
+  const desired = Date.UTC(local.year, local.month - 1, local.day, local.hour, local.minute);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const actual = zonedParts(new Date(timestamp), timeZone);
+    const observed = Date.UTC(actual.year, actual.month - 1, actual.day, actual.hour, actual.minute);
+    const difference = desired - observed;
+    timestamp += difference;
+    if (difference === 0) break;
+  }
+  const result = new Date(timestamp);
+  const roundTrip = zonedParts(result, timeZone);
+  if (Object.keys(local).some((key) => roundTrip[key as keyof LocalDateTime] !== local[key as keyof LocalDateTime])) {
+    throw new Error("This local time does not exist in the selected time zone");
+  }
+  return result;
+}
+
+export function buildWeeklyWindows(start: Date, durationMinutes: number, repeatWeeks: number, timeZone?: string) {
+  const localStart = timeZone ? zonedParts(start, timeZone) : null;
+  const localDateAnchor = localStart ? Date.UTC(localStart.year, localStart.month - 1, localStart.day) : 0;
   return Array.from({ length: repeatWeeks }, (_, index) => {
-    const startsAt = new Date(start.getTime() + index * 7 * 24 * 60 * 60_000);
+    let startsAt: Date;
+    if (timeZone && localStart) {
+      const repeatedDate = new Date(localDateAnchor + index * 7 * 24 * 60 * 60_000);
+      startsAt = zonedDateTimeToUtc({ year: repeatedDate.getUTCFullYear(), month: repeatedDate.getUTCMonth() + 1, day: repeatedDate.getUTCDate(), hour: localStart.hour, minute: localStart.minute }, timeZone);
+    } else {
+      startsAt = new Date(start.getTime() + index * 7 * 24 * 60 * 60_000);
+    }
     return { startsAt, endsAt: new Date(startsAt.getTime() + durationMinutes * 60_000) };
   });
 }

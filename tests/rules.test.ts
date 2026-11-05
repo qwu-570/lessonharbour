@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildWeeklyWindows, canRespondToBooking, validateLessonWindow } from "../lib/rules.ts";
+import { buildWeeklyWindows, canRespondToBooking, validateLessonWindow, zonedDateTimeToUtc } from "../lib/rules.ts";
 
 test("accepts a valid future lesson window", () => {
   const now = new Date("2026-11-05T12:00:00.000Z");
@@ -28,6 +28,16 @@ test("builds weekly repeated availability", () => {
   assert.equal(windows.length, 3);
   assert.equal(windows[0].endsAt.toISOString(), "2026-11-06T13:00:00.000Z");
   assert.equal(windows[2].startsAt.toISOString(), "2026-11-20T12:15:00.000Z");
+});
+
+test("converts a selected local time in an IANA time zone", () => {
+  assert.equal(zonedDateTimeToUtc({ year: 2026, month: 7, day: 1, hour: 17, minute: 15 }, "Europe/London").toISOString(), "2026-07-01T16:15:00.000Z");
+});
+
+test("keeps repeated lessons at the same local time across daylight-saving changes", () => {
+  const start = zonedDateTimeToUtc({ year: 2026, month: 10, day: 18, hour: 17, minute: 0 }, "Europe/London");
+  const windows = buildWeeklyWindows(start, 60, 3, "Europe/London");
+  assert.deepEqual(windows.map(window => window.startsAt.toISOString()), ["2026-10-18T16:00:00.000Z", "2026-10-25T17:00:00.000Z", "2026-11-01T17:00:00.000Z"]);
 });
 
 test("only pending bookings can be accepted or rejected", () => {
