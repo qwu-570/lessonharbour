@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- tutor URLs are dynamic and use a local fallback */
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { zonedDateTimeToUtc } from "@/lib/rules";
 
 type Role = "student" | "tutor";
@@ -25,9 +25,34 @@ function initials(name: string) { return name.split(/\s+/).map(part => part[0]).
 function lessonFormat(value: string) { return value === "in_person" ? "In person" : value === "both" ? "Online & in person" : "Online"; }
 function formatDate(value: string, timeZone?: string) { return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", ...(timeZone ? { timeZone } : {}) }).format(new Date(value)); }
 
-const commonTimeZones = ["Europe/London", "Europe/Paris", "Europe/Berlin", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Asia/Shanghai", "Asia/Hong_Kong", "Asia/Tokyo", "Australia/Sydney", "UTC"];
-function availableTimeZones() {
-  try { return Intl.supportedValuesOf("timeZone"); } catch { return commonTimeZones; }
+const timeZoneOptions = [
+  ["Pacific/Pago_Pago", "UTC−11 · Samoa"], ["Pacific/Honolulu", "UTC−10 · Honolulu"],
+  ["America/Anchorage", "UTC−09 · Anchorage"], ["America/Los_Angeles", "UTC−08 · Los Angeles"],
+  ["America/Denver", "UTC−07 · Denver"], ["America/Chicago", "UTC−06 · Chicago"],
+  ["America/New_York", "UTC−05 · New York"], ["America/Halifax", "UTC−04 · Halifax"],
+  ["America/Sao_Paulo", "UTC−03 · São Paulo"], ["Atlantic/South_Georgia", "UTC−02 · South Georgia"],
+  ["Atlantic/Azores", "UTC−01 · Azores"], ["Europe/London", "UTC±00 · London"],
+  ["Europe/Paris", "UTC+01 · Paris"], ["Europe/Athens", "UTC+02 · Athens"],
+  ["Europe/Istanbul", "UTC+03 · Istanbul"], ["Asia/Dubai", "UTC+04 · Dubai"],
+  ["Asia/Karachi", "UTC+05 · Karachi"], ["Asia/Dhaka", "UTC+06 · Dhaka"],
+  ["Asia/Bangkok", "UTC+07 · Bangkok"], ["Asia/Shanghai", "UTC+08 · Shanghai"],
+  ["Asia/Tokyo", "UTC+09 · Tokyo"], ["Australia/Brisbane", "UTC+10 · Brisbane"],
+  ["Pacific/Noumea", "UTC+11 · Nouméa"], ["Pacific/Fiji", "UTC+12 · Fiji"],
+] as const;
+
+function timeZoneOffset(timeZone: string, date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find(part => part.type === type)?.value);
+  return Math.round((Date.UTC(value("year"), value("month") - 1, value("day"), value("hour"), value("minute")) - date.getTime()) / 60_000);
+}
+
+function nearestTimeZone(timeZone: string) {
+  const exact = timeZoneOptions.find(([value]) => value === timeZone);
+  if (exact) return exact[0];
+  try {
+    const offset = timeZoneOffset(timeZone);
+    return timeZoneOptions.find(([value]) => timeZoneOffset(value) === offset)?.[0] ?? "Europe/London";
+  } catch { return "Europe/London"; }
 }
 
 function TutorPhoto({ tutor, className }: { tutor: Pick<Tutor, "displayName" | "profilePhotoUrl">; className: string }) {
@@ -190,18 +215,17 @@ function TutorProfileForm({ profile, setProfile, refreshMe, setError, setNotice 
 }
 
 function AvailabilityManager({ setError, setNotice }: { setError: (v: string | null) => void; setNotice: (v: string | null) => void }) {
-  const [slots, setSlots] = useState<Slot[]>([]); const [date, setDate] = useState(""); const [hour, setHour] = useState("17"); const [minute, setMinute] = useState("00"); const [timeZone, setTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"); const [durationMinutes, setDurationMinutes] = useState(60); const [repeatWeeks, setRepeatWeeks] = useState(1);
-  const timeZones = useMemo(() => availableTimeZones(), []);
+  const [slots, setSlots] = useState<Slot[]>([]); const [date, setDate] = useState(""); const [hour, setHour] = useState("17"); const [minute, setMinute] = useState("00"); const [timeZone, setTimeZone] = useState(() => nearestTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/London")); const [durationMinutes, setDurationMinutes] = useState(60); const [repeatWeeks, setRepeatWeeks] = useState(1);
   const load = useCallback(async () => { try { setSlots((await api<{ slots: Slot[] }>("/api/availability")).slots); } catch (e) { setError(e instanceof Error ? e.message : "Unable to load availability"); } }, [setError]);
   useEffect(() => {
     let cancelled = false;
-    Promise.all([api<{ slots: Slot[] }>("/api/availability"), api<{ timeZone: string | null }>("/api/timezone")]).then(([slotData, zoneData]) => { if (!cancelled) { setSlots(slotData.slots); if (zoneData.timeZone && timeZones.includes(zoneData.timeZone)) setTimeZone(zoneData.timeZone); } })
+    Promise.all([api<{ slots: Slot[] }>("/api/availability"), api<{ timeZone: string | null }>("/api/timezone")]).then(([slotData, zoneData]) => { if (!cancelled) { setSlots(slotData.slots); if (zoneData.timeZone) setTimeZone(nearestTimeZone(zoneData.timeZone)); } })
       .catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : "Unable to load availability"); });
     return () => { cancelled = true; };
-  }, [setError, timeZones]);
+  }, [setError]);
   async function add(e: FormEvent) { e.preventDefault(); setError(null); try { const [year, month, day] = date.split("-").map(Number); const startsAt = zonedDateTimeToUtc({ year, month, day, hour: Number(hour), minute: Number(minute) }, timeZone); const data = await api<{ slots: Slot[] }>("/api/availability", { method: "POST", body: JSON.stringify({ startsAt: startsAt.toISOString(), durationMinutes, repeatWeeks, timeZone }) }); setDate(""); await load(); setNotice(`${data.slots.length} lesson ${data.slots.length === 1 ? "slot" : "slots"} published in ${timeZone}.`); } catch (err) { setError(err instanceof Error ? err.message : "Unable to add slot"); } }
   async function remove(id: string) { try { await api(`/api/availability/${id}`, { method: "DELETE" }); await load(); setNotice("Availability removed."); } catch (err) { setError(err instanceof Error ? err.message : "Unable to remove slot"); } }
-  return <div className="grid gap-6 lg:grid-cols-[380px_1fr]"><form className="lh-card h-fit grid gap-4 p-6" onSubmit={add}><h2 className="lh-serif text-3xl">Add availability</h2><label className="lh-field">Date<input required type="date" value={date} onChange={e => setDate(e.target.value)}/></label><fieldset className="grid grid-cols-2 gap-3 border-0 p-0"><legend className="mb-2 text-xs font-bold">First lesson starts</legend><label className="lh-field">Hour<select aria-label="Hour" value={hour} onChange={e => setHour(e.target.value)}>{Array.from({length: 24}, (_, value) => String(value).padStart(2, "0")).map(value => <option key={value}>{value}</option>)}</select></label><label className="lh-field">Minute<select aria-label="Minute" value={minute} onChange={e => setMinute(e.target.value)}>{["00", "15", "30", "45"].map(value => <option key={value}>{value}</option>)}</select></label></fieldset><label className="lh-field">Time zone<select value={timeZone} onChange={e => setTimeZone(e.target.value)}>{timeZones.map(zone => <option key={zone}>{zone}</option>)}</select></label><label className="lh-field">Lesson length<select value={durationMinutes} onChange={e => setDurationMinutes(Number(e.target.value))}>{[30,45,60,75,90,105,120,135,150,165,180].map(value => <option value={value} key={value}>{value < 60 ? `${value} minutes` : `${Math.floor(value / 60)}h${value % 60 ? ` ${value % 60}m` : ""}`}</option>)}</select></label><label className="lh-field">Repeat weekly<select value={repeatWeeks} onChange={e => setRepeatWeeks(Number(e.target.value))}>{Array.from({length: 12}, (_, index) => index + 1).map(value => <option value={value} key={value}>{value === 1 ? "Do not repeat" : `${value} weeks`}</option>)}</select></label><button className="lh-button coral" type="submit">Publish {repeatWeeks === 1 ? "slot" : `${repeatWeeks} slots`}</button></form><section><h2 className="lh-serif text-3xl">Your lesson times</h2><p className="mt-1 text-xs text-[var(--muted)]">Shown in {timeZone}</p><div className="mt-4 grid gap-3">{slots.map(slot => <article className="lh-card flex items-center justify-between gap-4 p-4" key={slot.id}><div><strong>{formatDate(slot.startsAt, timeZone)}</strong><p className="text-xs text-[var(--muted)]">{slot.bookingStatus ? `Booking: ${slot.bookingStatus}` : "Available"}</p></div>{!slot.bookingId && <button className="lh-button ghost" onClick={() => void remove(slot.id)}>Remove</button>}</article>)}{slots.length === 0 && <p className="lh-card p-8 text-sm text-[var(--muted)]">No lesson times yet.</p>}</div></section></div>;
+  return <div className="grid gap-6 lg:grid-cols-[380px_1fr]"><form className="lh-card h-fit grid gap-4 p-6" onSubmit={add}><h2 className="lh-serif text-3xl">Add availability</h2><label className="lh-field">Date<input required type="date" value={date} onChange={e => setDate(e.target.value)}/></label><fieldset className="grid grid-cols-2 gap-3 border-0 p-0"><legend className="mb-2 text-xs font-bold">First lesson starts</legend><label className="lh-field">Hour<select aria-label="Hour" value={hour} onChange={e => setHour(e.target.value)}>{Array.from({length: 24}, (_, value) => String(value).padStart(2, "0")).map(value => <option key={value}>{value}</option>)}</select></label><label className="lh-field">Minute<select aria-label="Minute" value={minute} onChange={e => setMinute(e.target.value)}>{["00", "15", "30", "45"].map(value => <option key={value}>{value}</option>)}</select></label></fieldset><label className="lh-field">Time zone<select value={timeZone} onChange={e => setTimeZone(e.target.value)}>{timeZoneOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="lh-field">Lesson length<select value={durationMinutes} onChange={e => setDurationMinutes(Number(e.target.value))}>{[30,45,60,75,90,105,120,135,150,165,180].map(value => <option value={value} key={value}>{value < 60 ? `${value} minutes` : `${Math.floor(value / 60)}h${value % 60 ? ` ${value % 60}m` : ""}`}</option>)}</select></label><label className="lh-field">Repeat<select value={repeatWeeks} onChange={e => setRepeatWeeks(Number(e.target.value))}>{[1,4,8,12].map(value => <option value={value} key={value}>{value === 1 ? "One time only" : `Weekly for ${value} weeks`}</option>)}</select></label>{repeatWeeks > 1 && <p className="rounded-lg bg-[var(--teal-soft)] p-3 text-xs font-bold text-[var(--teal)]">This will add {repeatWeeks} slots, one every week at the same local time.</p>}<button className="lh-button coral" type="submit">{repeatWeeks === 1 ? "Add one slot" : `Add ${repeatWeeks} weekly slots`}</button></form><section><h2 className="lh-serif text-3xl">Your lesson times</h2><p className="mt-1 text-xs text-[var(--muted)]">Shown in {timeZone}</p><div className="mt-4 grid gap-3">{slots.map(slot => <article className="lh-card flex items-center justify-between gap-4 p-4" key={slot.id}><div><strong>{formatDate(slot.startsAt, timeZone)}</strong><p className="text-xs text-[var(--muted)]">{slot.bookingStatus ? `Booking: ${slot.bookingStatus}` : "Available"}</p></div>{!slot.bookingId && <button className="lh-button ghost" onClick={() => void remove(slot.id)}>Remove</button>}</article>)}{slots.length === 0 && <p className="lh-card p-8 text-sm text-[var(--muted)]">No lesson times yet.</p>}</div></section></div>;
 }
 
 function StudentDashboard({ setError }: { setError: (v: string | null) => void }) { return <main><section className="border-b border-[var(--line)] bg-[var(--cream)] py-12"><div className="lh-shell"><span className="lh-kicker">Student dashboard</span><h1 className="lh-serif mt-2 text-5xl">Your lesson requests.</h1></div></section><div className="lh-shell py-10"><BookingManager role="student" setError={setError} setNotice={() => {}}/></div></main>; }
