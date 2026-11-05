@@ -24,7 +24,12 @@ const worker = {
       };
     }
     return runWithConnectorBinding(binding, async () => {
-      const response = await handler.fetch(request, env, ctx);
+      const requestHeaders = new Headers(request.headers);
+      requestHeaders.delete("x-lessonharbour-visitor-timezone");
+      const visitorTimeZone = (request as Request & { cf?: { timezone?: string } }).cf?.timezone;
+      if (visitorTimeZone) requestHeaders.set("x-lessonharbour-visitor-timezone", visitorTimeZone);
+      const routedRequest = new Request(request, { headers: requestHeaders });
+      const response = await handler.fetch(routedRequest, env, ctx);
       const headers = new Headers(response.headers);
       headers.set("X-Content-Type-Options", "nosniff");
       headers.set("X-Frame-Options", "DENY");
