@@ -8,6 +8,8 @@ LessonHarbour is an open-source tutor discovery and lesson-booking MVP. It suppo
 - Student and tutor role-based authorisation
 - Published tutor profiles and subject filtering
 - Tutor profile photos and spoken-language badges
+- Direct JPEG, PNG or WebP profile-photo uploads
+- Weekly repeated availability with 15-minute time increments
 - Tutor availability management
 - Student booking requests
 - Tutor accept or reject workflow

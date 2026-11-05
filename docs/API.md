@@ -19,7 +19,7 @@ Tutor profile payloads support `profilePhotoUrl` (a public HTTPS URL or `null`) 
 ## Availability
 
 - `GET /api/availability` lists the authenticated tutor's slots.
-- `POST /api/availability` creates a future slot lasting 30 minutes to 3 hours.
+- `POST /api/availability` creates 1–12 weekly slots from a 15-minute-aligned start, lesson duration and repeat count.
 - `DELETE /api/availability/:id` deletes an unbooked slot owned by the tutor.
 
 ## Bookings
@@ -27,6 +27,11 @@ Tutor profile payloads support `profilePhotoUrl` (a public HTTPS URL or `null`) 
 - `GET /api/bookings` lists bookings belonging to the authenticated user.
 - `POST /api/bookings` lets a student request an unbooked future slot.
 - `PATCH /api/bookings/:id` lets the owning tutor accept or reject a pending request.
+
+## Profile photos
+
+- `POST /api/profile-photo` accepts one authenticated tutor image as multipart form data (`photo`), limited to JPEG, PNG or WebP under 3 MB.
+- `GET /api/profile-photo?key=...` serves an uploaded profile image from private object storage.
 
 ## Common status codes
 

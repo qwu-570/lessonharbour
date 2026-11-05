@@ -1,8 +1,8 @@
 import { and, asc, eq, gt, lt, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import { availabilitySlots, bookings } from "@/db/schema";
-import { ApiError, assertSameOrigin, enforceRateLimit, handleApiError, isoDateValue, json, readJson, requireAccount } from "@/lib/api";
-import { validateLessonWindow } from "@/lib/rules";
+import { ApiError, assertSameOrigin, enforceRateLimit, handleApiError, integerValue, isoDateValue, json, readJson, requireAccount } from "@/lib/api";
+import { buildWeeklyWindows, validateLessonWindow } from "@/lib/rules";
 
 export const dynamic = "force-dynamic";
 
@@ -28,24 +28,27 @@ export async function POST(request: Request) {
     assertSameOrigin(request);
     const { account } = await requireAccount("tutor");
     await enforceRateLimit(account.id, "availability", 20, 300);
-    const body = await readJson<{ startsAt?: unknown; endsAt?: unknown }>(request);
+    const body = await readJson<{ startsAt?: unknown; durationMinutes?: unknown; repeatWeeks?: unknown }>(request);
     const startsAt = isoDateValue(body.startsAt, "Start time");
-    const endsAt = isoDateValue(body.endsAt, "End time");
-    const timeError = validateLessonWindow(startsAt, endsAt);
-    if (timeError) throw new ApiError(400, timeError);
-    const startIso = startsAt.toISOString();
-    const endIso = endsAt.toISOString();
-    const overlap = await getDb().select({ id: availabilitySlots.id }).from(availabilitySlots).where(and(
+    const durationMinutes = integerValue(body.durationMinutes, "Lesson duration", 30, 180);
+    if (durationMinutes % 15 !== 0) throw new ApiError(400, "Lesson duration must use 15-minute intervals");
+    const repeatWeeks = integerValue(body.repeatWeeks, "Repeat weeks", 1, 12);
+    const windows = buildWeeklyWindows(startsAt, durationMinutes, repeatWeeks);
+    for (const window of windows) {
+      const timeError = validateLessonWindow(window.startsAt, window.endsAt);
+      if (timeError) throw new ApiError(400, timeError);
+    }
+    const firstStart = windows[0].startsAt.toISOString();
+    const lastEnd = windows.at(-1)!.endsAt.toISOString();
+    const existing = await getDb().select({ startsAt: availabilitySlots.startsAt, endsAt: availabilitySlots.endsAt }).from(availabilitySlots).where(and(
       eq(availabilitySlots.tutorId, account.id),
-      or(
-        and(lt(availabilitySlots.startsAt, endIso), gt(availabilitySlots.endsAt, startIso)),
-        and(eq(availabilitySlots.startsAt, startIso), eq(availabilitySlots.endsAt, endIso)),
-      ),
-    )).limit(1);
-    if (overlap[0]) throw new ApiError(409, "This time overlaps an existing slot");
-    const slot = { id: crypto.randomUUID(), tutorId: account.id, startsAt: startIso, endsAt: endIso };
-    await getDb().insert(availabilitySlots).values(slot);
-    return json({ slot }, { status: 201 });
+      or(and(lt(availabilitySlots.startsAt, lastEnd), gt(availabilitySlots.endsAt, firstStart))),
+    ));
+    const overlaps = windows.some((window) => existing.some((slot) => slot.startsAt < window.endsAt.toISOString() && slot.endsAt > window.startsAt.toISOString()));
+    if (overlaps) throw new ApiError(409, "One or more repeated times overlap an existing slot");
+    const slots = windows.map((window) => ({ id: crypto.randomUUID(), tutorId: account.id, startsAt: window.startsAt.toISOString(), endsAt: window.endsAt.toISOString() }));
+    await getDb().insert(availabilitySlots).values(slots);
+    return json({ slots }, { status: 201 });
   } catch (error) {
     return handleApiError(error);
   }

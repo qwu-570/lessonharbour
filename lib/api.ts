@@ -85,6 +85,7 @@ export function integerValue(value: unknown, name: string, min: number, max: num
 export function optionalHttpsUrl(value: unknown, name: string, max = 500) {
   if (value === null || value === undefined || value === "") return null;
   if (typeof value !== "string" || value.length > max) throw new ApiError(400, `${name} must be a valid HTTPS URL`);
+  if (value.startsWith("/api/profile-photo?key=avatars%2F")) return value;
   try {
     const url = new URL(value.trim());
     if (url.protocol !== "https:") throw new Error("HTTPS required");

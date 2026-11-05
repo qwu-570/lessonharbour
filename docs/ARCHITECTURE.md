@@ -16,6 +16,8 @@ Cloudflare Worker and Vinext
 Cloudflare D1
 ```
 
+Tutor profile photos are stored in the Site's private R2 bucket and served through a validated read endpoint. Only authenticated tutors can upload images.
+
 Authentication is supplied by the hosting platform through verified identity headers. On first sign-in, the visitor creates either a student or tutor record. API routes read the authenticated identity on the server and separately verify the application role and record ownership.
 
 ## Data model
