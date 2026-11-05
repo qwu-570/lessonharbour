@@ -19,6 +19,7 @@ export const tutorProfiles = sqliteTable("tutor_profiles", {
   generalLocation: text("general_location"),
   profilePhotoUrl: text("profile_photo_url"),
   languages: text("languages").notNull().default("[]"),
+  calendarFeedToken: text("calendar_feed_token"),
   isPublished: integer("is_published", { mode: "boolean" }).notNull().default(false),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });

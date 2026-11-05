@@ -1,0 +1,1 @@
+ALTER TABLE `tutor_profiles` ADD `calendar_feed_token` text;
