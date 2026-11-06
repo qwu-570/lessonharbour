@@ -13,6 +13,7 @@ export const users = sqliteTable("users", {
 export const tutorProfiles = sqliteTable("tutor_profiles", {
   userId: text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
   subject: text("subject").notNull(),
+  subjects: text("subjects").notNull().default("[]"),
   bio: text("bio").notNull(),
   bioEn: text("bio_en"),
   bioZh: text("bio_zh"),

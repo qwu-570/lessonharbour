@@ -13,6 +13,7 @@ create table if not exists public.users (
 create table if not exists public.tutor_profiles (
   user_id text primary key references public.users(id) on delete cascade,
   subject text not null,
+  subjects jsonb not null default '[]'::jsonb,
   bio text not null,
   bio_en text,
   bio_zh text,

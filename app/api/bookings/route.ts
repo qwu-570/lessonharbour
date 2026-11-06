@@ -1,5 +1,5 @@
 import { insertRows, isConflict, selectRows } from "@/db/supabase";
-import { ApiError, assertSameOrigin, enforceRateLimit, handleApiError, json, readJson, requireAccount, textValue } from "@/lib/api";
+import { ApiError, assertSameOrigin, enforceRateLimit, handleApiError, json, parseStringList, readJson, requireAccount, textValue } from "@/lib/api";
 import { sendBookingEmail } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
@@ -15,8 +15,8 @@ export async function GET() {
     const otherIds = [...new Set(rows.map(row => account.role === "student" ? row.tutor_id : row.student_id))];
     const people = otherIds.length ? await selectRows<{ id: string; display_name: string }>("users", { select: "id,display_name", id: `in.(${otherIds.join(",")})` }) : [];
     const tutorIds = [...new Set(rows.map(row => row.tutor_id))];
-    const profiles = tutorIds.length ? await selectRows<{ user_id: string; subject: string }>("tutor_profiles", { select: "user_id,subject", user_id: `in.(${tutorIds.join(",")})` }) : [];
-    const slotMap = new Map(slots.map(row => [row.id, row])); const nameMap = new Map(people.map(row => [row.id, row.display_name])); const subjectMap = new Map(profiles.map(row => [row.user_id, row.subject]));
+    const profiles = tutorIds.length ? await selectRows<{ user_id: string; subject: string; subjects: unknown[] }>("tutor_profiles", { select: "user_id,subject,subjects", user_id: `in.(${tutorIds.join(",")})` }) : [];
+    const slotMap = new Map(slots.map(row => [row.id, row])); const nameMap = new Map(people.map(row => [row.id, row.display_name])); const subjectMap = new Map(profiles.map(row => [row.user_id, parseStringList(row.subjects).slice(0, 2).join(" · ") || row.subject]));
     const result = rows.map(row => ({ id: row.id, status: row.status, subject: subjectMap.get(row.tutor_id), tutorName: account.role === "student" ? nameMap.get(row.tutor_id) : undefined, studentName: account.role === "tutor" ? nameMap.get(row.student_id) : undefined, startsAt: slotMap.get(row.slot_id)?.starts_at, endsAt: slotMap.get(row.slot_id)?.ends_at, cancellationReason: row.cancellation_reason, cancelledBy: row.cancelled_by })).sort((a, b) => String(a.startsAt).localeCompare(String(b.startsAt)));
     return json({ bookings: result });
   } catch (error) { return handleApiError(error); }

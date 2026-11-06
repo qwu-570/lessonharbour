@@ -13,6 +13,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const bookedIds = new Set(booked.map(row => row.slot_id));
     const slotRows = await selectRows<{ id: string; starts_at: string; ends_at: string }>("availability_slots", { select: "id,starts_at,ends_at", tutor_id: `eq.${id}`, starts_at: `gt.${new Date().toISOString()}`, order: "starts_at.asc", limit: 100 });
     const slots = slotRows.filter(slot => !bookedIds.has(slot.id)).slice(0, 50).map(slot => ({ id: slot.id, startsAt: slot.starts_at, endsAt: slot.ends_at }));
-    return json({ tutor: { id, displayName: person?.display_name ?? "Tutor", subject: profile.subject, bio: profile.bio, bioEn: profile.bio_en, bioZh: profile.bio_zh, hourlyPrice: profile.hourly_price, lessonFormat: profile.lesson_format, generalLocation: profile.general_location, profilePhotoUrl: profile.profile_photo_url, languages: parseStringList(profile.languages as unknown[]) }, slots });
+    return json({ tutor: { id, displayName: person?.display_name ?? "Tutor", subject: profile.subject, subjects: parseStringList((profile.subjects as unknown[]) ?? [profile.subject]), bio: profile.bio, bioEn: profile.bio_en, bioZh: profile.bio_zh, hourlyPrice: profile.hourly_price, lessonFormat: profile.lesson_format, generalLocation: profile.general_location, profilePhotoUrl: profile.profile_photo_url, languages: parseStringList(profile.languages as unknown[]) }, slots });
   } catch (error) { return handleApiError(error); }
 }
