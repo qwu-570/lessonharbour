@@ -13,7 +13,9 @@ async function request<T>(path: string, init: RequestInit = {}) {
   const { url, key } = config();
   const headers = new Headers(init.headers);
   headers.set("apikey", key);
-  headers.set("Authorization", `Bearer ${key}`);
+  // New `sb_secret_` keys authenticate through `apikey`. Only legacy JWT
+  // service-role keys belong in the Authorization header.
+  if (!key.startsWith("sb_secret_")) headers.set("Authorization", `Bearer ${key}`);
   headers.set("Content-Type", "application/json");
   const response = await fetch(`${url}/rest/v1/${path}`, { ...init, headers });
   if (!response.ok) {
