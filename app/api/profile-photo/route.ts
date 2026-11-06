@@ -1,7 +1,5 @@
 import { env } from "cloudflare:workers";
-import { eq, sql } from "drizzle-orm";
-import { getDb } from "@/db";
-import { tutorProfiles } from "@/db/schema";
+import { updateRows } from "@/db/supabase";
 import { ApiError, assertSameOrigin, enforceRateLimit, handleApiError, json, requireAccount } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +43,7 @@ export async function POST(request: Request) {
     const key = `avatars/${account.id}/${crypto.randomUUID()}.${extension}`;
     await env.BUCKET.put(key, await file.arrayBuffer(), { httpMetadata: { contentType: file.type } });
     const profilePhotoUrl = `/api/profile-photo?key=${encodeURIComponent(key)}`;
-    await getDb().update(tutorProfiles).set({ profilePhotoUrl, updatedAt: sql`CURRENT_TIMESTAMP` }).where(eq(tutorProfiles.userId, account.id));
+    await updateRows("tutor_profiles", { profile_photo_url: profilePhotoUrl, updated_at: new Date().toISOString() }, { user_id: `eq.${account.id}` });
     return json({ profilePhotoUrl }, { status: 201 });
   } catch (error) {
     return handleApiError(error);

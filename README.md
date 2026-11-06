@@ -1,6 +1,6 @@
 # LessonHarbour
 
-LessonHarbour is an open-source tutor discovery and lesson-booking MVP. It supports real authentication, student and tutor roles, tutor profiles, availability slots, booking requests, persistent Cloudflare D1 data, a REST API, automated tests and continuous integration.
+LessonHarbour is an open-source tutor discovery and lesson-booking MVP. It supports real authentication, student and tutor roles, tutor profiles, availability slots, booking requests, persistent Supabase Postgres data, a REST API, automated tests and continuous integration.
 
 ## MVP scope
 

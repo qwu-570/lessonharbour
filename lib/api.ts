@@ -1,7 +1,7 @@
-import { and, eq, sql } from "drizzle-orm";
-import { getDb } from "@/db";
-import { rateLimits, users } from "@/db/schema";
 import { getChatGPTUser } from "@/app/chatgpt-auth";
+import { rpc, selectRows } from "@/db/supabase";
+
+export type Account = { id: string; email: string; displayName: string; role: "student" | "tutor"; createdAt?: string; updatedAt?: string };
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -45,8 +45,9 @@ export async function requireIdentity() {
 }
 
 export async function getAccount(userId: string) {
-  const rows = await getDb().select().from(users).where(eq(users.id, userId)).limit(1);
-  return rows[0] ?? null;
+  const rows = await selectRows<{ id: string; email: string; display_name: string; role: "student" | "tutor"; created_at: string; updated_at: string }>("users", { select: "*", id: `eq.${userId}`, limit: 1 });
+  const row = rows[0];
+  return row ? { id: row.id, email: row.email, displayName: row.display_name, role: row.role, createdAt: row.created_at, updatedAt: row.updated_at } satisfies Account : null;
 }
 
 export async function requireAccount(role?: "student" | "tutor") {
@@ -58,16 +59,10 @@ export async function requireAccount(role?: "student" | "tutor") {
 }
 
 export async function enforceRateLimit(userId: string, action: string, limit = 30, windowSeconds = 60) {
-  const db = getDb();
   const windowStart = Math.floor(Date.now() / 1000 / windowSeconds) * windowSeconds;
   const key = `${userId}:${action}`;
-  await db.insert(rateLimits).values({ key, windowStart, count: 1 }).onConflictDoUpdate({
-    target: [rateLimits.key, rateLimits.windowStart],
-    set: { count: sql`${rateLimits.count} + 1` },
-  });
-  const rows = await db.select({ count: rateLimits.count }).from(rateLimits)
-    .where(and(eq(rateLimits.key, key), eq(rateLimits.windowStart, windowStart))).limit(1);
-  if ((rows[0]?.count ?? 0) > limit) throw new ApiError(429, "Too many requests. Please try again shortly.");
+  const count = await rpc<number>("increment_rate_limit", { p_key: key, p_window_start: windowStart });
+  if (count > limit) throw new ApiError(429, "Too many requests. Please try again shortly.");
 }
 
 export function textValue(value: unknown, name: string, min: number, max: number) {
@@ -101,7 +96,8 @@ export function stringList(value: unknown, name: string, maxItems = 8, maxLength
   return [...new Set(cleaned)];
 }
 
-export function parseStringList(value: string) {
+export function parseStringList(value: string | unknown[]) {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
   try {
     const parsed: unknown = JSON.parse(value);
     return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
