@@ -213,7 +213,7 @@ export default function LessonHarbourApp({ initialIdentity, signInPath, signOutP
   return (
     <LocaleContext.Provider value={{ locale, setLocale }}>
     <div className="min-h-screen bg-[var(--paper)] text-[var(--ink)]">
-      <div className="bg-[var(--ink)] py-2 text-center text-[11px] font-bold tracking-[.08em] text-white">{text("BOOK TUTORS FOR FREE · NO MIDDLEMAN FEES", "免费预约老师 · 无中间费用")}</div>
+      <div className="bg-[var(--ink)] py-2 text-center text-[11px] font-bold tracking-[.08em] text-white">{text("BOOK TUTORS FOR FREE · NO HIDDEN FEES", "免费预约老师 · 无隐藏费用")}</div>
       <header className="sticky top-0 z-40 border-b border-[var(--line)] bg-[rgb(255_253_248/.94)] backdrop-blur-lg">
         <div className="lh-shell flex h-[72px] items-center justify-between gap-6">
           <button className="flex items-center gap-3 border-0 bg-transparent p-0 font-bold" onClick={() => navigate("home")}><span className="grid size-9 place-items-center rounded-full bg-[var(--teal-soft)] text-[var(--teal)]">⌁</span><span>LessonHarbour</span></button>
