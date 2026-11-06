@@ -12,9 +12,9 @@ async function save(request: Request) {
   const values = {
     user_id: account.id,
     subject: textValue(body.subject, "Subject", 2, 60),
-    bio: textValue(body.bio, "Biography", 30, 800),
-    bio_en: body.bioEn ? textValue(body.bioEn, "English biography", 30, 800) : null,
-    bio_zh: body.bioZh ? textValue(body.bioZh, "Chinese biography", 15, 800) : null,
+    bio: textValue(body.bio, "Biography", 30, 2000),
+    bio_en: body.bioEn ? textValue(body.bioEn, "English biography", 30, 2000) : null,
+    bio_zh: body.bioZh ? textValue(body.bioZh, "Chinese biography", 15, 2000) : null,
     hourly_price: integerValue(body.hourlyPrice, "Hourly price", 5, 200),
     lesson_format: enumValue(body.lessonFormat, "lesson format", lessonFormats),
     general_location: body.generalLocation ? textValue(body.generalLocation, "Location", 2, 100) : null,

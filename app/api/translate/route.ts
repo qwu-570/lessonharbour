@@ -7,7 +7,7 @@ export async function POST(request: Request) {
     const { account } = await requireAccount("tutor");
     await enforceRateLimit(account.id, "profile-translation", 10, 3600);
     const body = await readJson<{ text?: unknown; target?: unknown }>(request);
-    const source = textValue(body.text, "Biography", 30, 800);
+    const source = textValue(body.text, "Biography", 30, 2000);
     const target = body.target === "EN" || body.target === "ZH" ? body.target : null;
     if (!target) throw new ApiError(400, "Translation target must be EN or ZH");
     const key = (env as unknown as { DEEPL_API_KEY?: string }).DEEPL_API_KEY;
