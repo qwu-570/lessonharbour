@@ -9,7 +9,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   try {
     const { id } = await context.params;
     const profileRows = await getDb().select({
-      id: users.id, displayName: users.displayName, subject: tutorProfiles.subject, bio: tutorProfiles.bio,
+      id: users.id, displayName: users.displayName, subject: tutorProfiles.subject, bio: tutorProfiles.bio, bioEn: tutorProfiles.bioEn, bioZh: tutorProfiles.bioZh,
       hourlyPrice: tutorProfiles.hourlyPrice, lessonFormat: tutorProfiles.lessonFormat,
       generalLocation: tutorProfiles.generalLocation,
       profilePhotoUrl: tutorProfiles.profilePhotoUrl, languages: tutorProfiles.languages,

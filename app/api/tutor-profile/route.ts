@@ -4,7 +4,7 @@ import { tutorProfiles } from "@/db/schema";
 import { assertSameOrigin, enforceRateLimit, enumValue, handleApiError, integerValue, json, optionalHttpsUrl, parseStringList, readJson, requireAccount, stringList, textValue } from "@/lib/api";
 import { lessonFormats } from "@/lib/rules";
 
-type ProfileBody = { subject?: unknown; bio?: unknown; hourlyPrice?: unknown; lessonFormat?: unknown; generalLocation?: unknown; profilePhotoUrl?: unknown; languages?: unknown; isPublished?: unknown };
+type ProfileBody = { subject?: unknown; bio?: unknown; bioEn?: unknown; bioZh?: unknown; hourlyPrice?: unknown; lessonFormat?: unknown; generalLocation?: unknown; profilePhotoUrl?: unknown; languages?: unknown; isPublished?: unknown };
 
 async function save(request: Request) {
   assertSameOrigin(request);
@@ -15,6 +15,8 @@ async function save(request: Request) {
     userId: account.id,
     subject: textValue(body.subject, "Subject", 2, 60),
     bio: textValue(body.bio, "Biography", 30, 800),
+    bioEn: body.bioEn ? textValue(body.bioEn, "English biography", 30, 800) : null,
+    bioZh: body.bioZh ? textValue(body.bioZh, "Chinese biography", 15, 800) : null,
     hourlyPrice: integerValue(body.hourlyPrice, "Hourly price", 5, 200),
     lessonFormat: enumValue(body.lessonFormat, "lesson format", lessonFormats),
     generalLocation: body.generalLocation ? textValue(body.generalLocation, "Location", 2, 100) : null,

@@ -44,6 +44,19 @@ Apply the generated D1 migration to the local preview database using the command
 npm run dev
 ```
 
+## Optional production services
+
+Automatic tutor-biography translation uses a server-side `DEEPL_API_KEY`.
+
+Transactional booking email uses Cloudflare Email Sending over its REST API and requires an onboarded sender domain plus these Sites runtime secrets/variables:
+
+- `CLOUDFLARE_EMAIL_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+- `EMAIL_FROM`
+- `SITE_URL`
+
+Booking writes never depend on successful email delivery; users continue to receive in-product booking status and cancellation information when email is unavailable.
+
 The local Sites preview provides a mock Sign in with ChatGPT identity for loopback development.
 
 ## Quality checks

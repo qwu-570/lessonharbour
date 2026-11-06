@@ -16,6 +16,8 @@ export async function GET(request: Request) {
       displayName: users.displayName,
       subject: tutorProfiles.subject,
       bio: tutorProfiles.bio,
+      bioEn: tutorProfiles.bioEn,
+      bioZh: tutorProfiles.bioZh,
       hourlyPrice: tutorProfiles.hourlyPrice,
       lessonFormat: tutorProfiles.lessonFormat,
       generalLocation: tutorProfiles.generalLocation,
