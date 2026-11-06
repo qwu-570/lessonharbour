@@ -20,6 +20,7 @@ create table if not exists public.tutor_profiles (
   hourly_price integer not null check (hourly_price >= 0),
   lesson_format text not null check (lesson_format in ('online', 'in_person', 'both')),
   general_location text,
+  postcode text,
   profile_photo_url text,
   languages jsonb not null default '[]'::jsonb,
   calendar_feed_token text unique,

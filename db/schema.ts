@@ -20,6 +20,7 @@ export const tutorProfiles = sqliteTable("tutor_profiles", {
   hourlyPrice: integer("hourly_price").notNull(),
   lessonFormat: text("lesson_format", { enum: ["online", "in_person", "both"] }).notNull(),
   generalLocation: text("general_location"),
+  postcode: text("postcode"),
   profilePhotoUrl: text("profile_photo_url"),
   languages: text("languages").notNull().default("[]"),
   calendarFeedToken: text("calendar_feed_token"),
