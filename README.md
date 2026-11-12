@@ -39,6 +39,8 @@ Promoted tutors, VIP priority booking, payments, reviews, identity verification 
 
 See the [Project plan](docs/PROJECT-PLAN.md), [Design evidence](docs/DESIGN-EVIDENCE.md), [Architecture](docs/ARCHITECTURE.md), [REST API](docs/API.md), [Security](SECURITY.md) and [Contributing](CONTRIBUTING.md).
 
+The short final-project deck is available as an editable [PowerPoint presentation](docs/presentation/LessonHarbour-Project-Presentation.pptx).
+
 ## Run locally
 
 Requirements: Node.js 22.13 or later and a Supabase project with the required schema.
