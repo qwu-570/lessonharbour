@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- tutor URLs are dynamic and use a local fallback */
 
-import { createContext, FormEvent, KeyboardEvent, useCallback, useContext, useEffect, useState, useSyncExternalStore } from "react";
+import { createContext, FormEvent, KeyboardEvent, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { zonedDateTimeToUtc } from "@/lib/rules";
 
 type Role = "student" | "tutor";
@@ -912,8 +912,18 @@ function ProfileView({ tutor, slots, me, onSignIn, onDashboard, onBack, onBook, 
   const { text, zh } = useI18n();
   const [messageBody, setMessageBody] = useState("");
   const [sending, setSending] = useState(false);
+  const [translatedBiography, setTranslatedBiography] = useState<string | null>(tutor.bioZh);
+  const translationRequested = useRef(false);
   const format = zh ? (tutor.lessonFormat === "in_person" ? "线下授课" : tutor.lessonFormat === "both" ? "线上及线下" : "线上授课") : lessonFormat(tutor.lessonFormat);
-  const biography = zh ? (tutor.bioZh ?? tutor.bio) : (tutor.bioEn ?? tutor.bio);
+  const biography = zh ? (translatedBiography ?? tutor.bioZh ?? tutor.bio) : tutor.bio;
+  const isTranslatingBiography = zh && !translatedBiography && !tutor.bioZh;
+  useEffect(() => {
+    if (!zh || tutor.bioZh || translatedBiography || translationRequested.current) return;
+    translationRequested.current = true;
+    void api<{ translation: string }>(`/api/tutors/${encodeURIComponent(tutor.id)}/translation`, { method: "POST", body: "{}" })
+      .then((data) => setTranslatedBiography(data.translation))
+      .catch((error) => setError(error instanceof Error ? error.message : "无法自动翻译个人介绍"));
+  }, [setError, translatedBiography, tutor.bioZh, tutor.id, zh]);
   async function sendMessage() {
     if (!me.authenticated) {
       onSignIn();
@@ -953,6 +963,7 @@ function ProfileView({ tutor, slots, me, onSignIn, onDashboard, onBack, onBook, 
           <h1 className="lh-serif mt-2 text-6xl tracking-tight">{tutor.displayName}</h1>
           <LanguageList languages={tutor.languages} />
           <p className="mt-5 whitespace-pre-wrap text-lg leading-8 text-[var(--muted)]">{biography}</p>
+          {isTranslatingBiography && <p className="mt-2 text-sm text-[var(--muted)]">正在自动翻译个人介绍…</p>}
           <div className="mt-8 grid grid-cols-2 gap-4 border-t border-[var(--line)] pt-5">
             <div>
               <span className="lh-kicker">{text("Format", "授课方式")}</span>
@@ -1105,7 +1116,6 @@ function TutorDashboard({ me, refreshMe, setError, setNotice }: { me: MeResponse
 
 function TutorProfileForm({ profile, setProfile, refreshMe, setError, setNotice }: { profile: Profile; setProfile: (p: Profile) => void; refreshMe: () => Promise<void>; setError: (v: string | null) => void; setNotice: (v: string | null) => void }) {
   const [uploading, setUploading] = useState(false);
-  const [translating, setTranslating] = useState<"EN" | "ZH" | null>(null);
   const { text } = useI18n();
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -1135,25 +1145,6 @@ function TutorProfileForm({ profile, setProfile, refreshMe, setError, setNotice 
       setError(err instanceof Error ? err.message : "Unable to upload photo");
     } finally {
       setUploading(false);
-    }
-  }
-  async function translateBiography(target: "EN" | "ZH") {
-    setTranslating(target);
-    setError(null);
-    try {
-      const data = await api<{ translation: string; provider?: string }>("/api/translate", {
-        method: "POST",
-        body: JSON.stringify({ text: profile.bio, target }),
-      });
-      setProfile({
-        ...profile,
-        ...(target === "ZH" ? { bioZh: data.translation } : { bioEn: data.translation }),
-      });
-      setNotice(text(`Translation created${data.provider ? ` with ${data.provider}` : ""}. Review it, then save your profile.`, `翻译已生成${data.provider ? `（${data.provider}）` : ""}，请检查后保存档案。`));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : text("Unable to translate biography", "无法翻译个人介绍"));
-    } finally {
-      setTranslating(null);
     }
   }
   return (
@@ -1229,24 +1220,6 @@ function TutorProfileForm({ profile, setProfile, refreshMe, setError, setNotice 
         <textarea minLength={30} maxLength={2000} value={profile.bio} onChange={(e) => setProfile({ ...profile, bio: e.target.value })} placeholder={text("Describe your teaching experience and approach…", "介绍您的教学经验和教学方式…")} />
         <span className="text-right text-xs text-[var(--muted)]">{profile.bio.length}/2000</span>
       </label>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="lh-field">
-          {text("English version", "英文版本")}
-          <textarea minLength={30} maxLength={2000} value={profile.bioEn ?? ""} onChange={(e) => setProfile({ ...profile, bioEn: e.target.value || null })} placeholder={text("English translation", "英文翻译")} />
-          <span className="text-right text-xs text-[var(--muted)]">{profile.bioEn?.length ?? 0}/2000</span>
-          <button type="button" disabled={translating !== null || profile.bio.length < 30} className="lh-button ghost" onClick={() => void translateBiography("EN")}>
-            {translating === "EN" ? text("Translating…", "正在翻译…") : text("Auto-translate to English", "自动翻译成英文")}
-          </button>
-        </label>
-        <label className="lh-field">
-          {text("Chinese version", "中文版本")}
-          <textarea minLength={15} maxLength={2000} value={profile.bioZh ?? ""} onChange={(e) => setProfile({ ...profile, bioZh: e.target.value || null })} placeholder={text("Chinese translation", "中文翻译")} />
-          <span className="text-right text-xs text-[var(--muted)]">{profile.bioZh?.length ?? 0}/2000</span>
-          <button type="button" disabled={translating !== null || profile.bio.length < 30} className="lh-button ghost" onClick={() => void translateBiography("ZH")}>
-            {translating === "ZH" ? text("Translating…", "正在翻译…") : text("Auto-translate to Chinese", "自动翻译成中文")}
-          </button>
-        </label>
-      </div>
       <label className="flex items-center gap-3 text-sm font-bold">
         <input type="checkbox" checked={profile.isPublished} onChange={(e) => setProfile({ ...profile, isPublished: e.target.checked })} /> {text("Publish profile in tutor search", "在老师搜索中公开此档案")}
       </label>

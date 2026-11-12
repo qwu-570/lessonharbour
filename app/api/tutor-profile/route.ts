@@ -1,4 +1,4 @@
-import { insertRows } from "@/db/supabase";
+import { insertRows, selectRows } from "@/db/supabase";
 import { ApiError, assertSameOrigin, enforceRateLimit, enumValue, handleApiError, integerValue, json, optionalHttpsUrl, parseStringList, readJson, requireAccount, stringList, textValue } from "@/lib/api";
 import { lessonFormats } from "@/lib/rules";
 
@@ -13,13 +13,15 @@ async function save(request: Request) {
   if (subjects.length === 0) throw new ApiError(400, "Choose at least one subject");
   const postcode = body.postcode ? textValue(body.postcode, "Postcode", 5, 10).toUpperCase().replace(/\s+/g, " ") : null;
   if (postcode && !/^[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}$/.test(postcode)) throw new ApiError(400, "Enter a valid UK postcode");
+  const biography = textValue(body.bio, "Biography", 30, 2000);
+  const previous = (await selectRows<{ bio: string; bio_en: string | null; bio_zh: string | null }>("tutor_profiles", { select: "bio,bio_en,bio_zh", user_id: `eq.${account.id}`, limit: 1 }))[0];
   const values = {
     user_id: account.id,
     subject: subjects[0],
     subjects,
-    bio: textValue(body.bio, "Biography", 30, 2000),
-    bio_en: body.bioEn ? textValue(body.bioEn, "English biography", 30, 2000) : null,
-    bio_zh: body.bioZh ? textValue(body.bioZh, "Chinese biography", 15, 2000) : null,
+    bio: biography,
+    bio_en: previous?.bio === biography ? previous.bio_en : null,
+    bio_zh: previous?.bio === biography ? previous.bio_zh : null,
     hourly_price: integerValue(body.hourlyPrice, "Hourly price", 5, 200),
     lesson_format: enumValue(body.lessonFormat, "lesson format", lessonFormats),
     general_location: body.generalLocation ? textValue(body.generalLocation, "Location", 2, 100) : null,
