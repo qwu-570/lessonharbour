@@ -2,30 +2,29 @@
 
 ## Supported version
 
-Only the latest deployed version of the MVP is supported.
+Only the latest deployed version of LessonHarbour is supported.
 
 ## Reporting a vulnerability
 
-Do not publish security vulnerabilities in a public issue. Contact the repository owner privately with reproduction steps, affected endpoints and the potential impact.
+Please do not disclose security vulnerabilities in a public GitHub issue. Contact the repository owner privately with reproduction steps, affected endpoints and potential impact. Avoid accessing, modifying or downloading data belonging to other users.
 
 ## Implemented controls
 
-- Managed authentication; LessonHarbour does not store passwords
-- Server-side role and ownership checks
-- Same-origin protection for state-changing requests
-- Bounded JSON validation
-- Authenticated write rate limits
-- Parameterised database access through Drizzle
-- Unique database constraints for booking integrity
-- Security response headers and restrictive CSP
-- Secrets excluded from source control
+- Supabase email authentication with password-reset support
+- HTTP-only authentication cookies
+- Server-side role and record-ownership checks
+- Same-origin validation for state-changing requests
+- Bounded input validation and upload type/size checks
+- Rate limits on authentication and sensitive writes
+- Database uniqueness constraints for booking integrity
+- Security response headers and restrictive Content Security Policy
+- Private matching postcodes excluded from public tutor responses
+- Secrets and local environment files excluded from source control
 
-## Known MVP limitations
+## Known limitations
 
-- No independent email/password login or password recovery
-- No email verification beyond the managed identity provider
-- No moderation or identity-verification workflow for tutors
-- No payment processing
-- No private-address exchange
-
-These limitations must be reviewed before expanding beyond a controlled initial release.
+- Tutor identity, qualifications and safeguarding documents are not yet verified
+- Messaging does not yet include automated moderation or abuse detection
+- Payments, disputes and refunds are not handled by the platform
+- MyMemory may process published tutor biography text when DeepL is not configured
+- The project is an evolving MVP and requires a security review before high-volume production use
