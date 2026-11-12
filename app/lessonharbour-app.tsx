@@ -1117,7 +1117,7 @@ function TutorProfileForm({ profile, setProfile, refreshMe, setError, setNotice 
     setTranslating(target);
     setError(null);
     try {
-      const data = await api<{ translation: string }>("/api/translate", {
+      const data = await api<{ translation: string; provider?: string }>("/api/translate", {
         method: "POST",
         body: JSON.stringify({ text: profile.bio, target }),
       });
@@ -1125,7 +1125,7 @@ function TutorProfileForm({ profile, setProfile, refreshMe, setError, setNotice 
         ...profile,
         ...(target === "ZH" ? { bioZh: data.translation } : { bioEn: data.translation }),
       });
-      setNotice(text("Translation created. Review it, then save your profile.", "翻译已生成，请检查后保存档案。"));
+      setNotice(text(`Translation created${data.provider ? ` with ${data.provider}` : ""}. Review it, then save your profile.`, `翻译已生成${data.provider ? `（${data.provider}）` : ""}，请检查后保存档案。`));
     } catch (err) {
       setError(err instanceof Error ? err.message : text("Unable to translate biography", "无法翻译个人介绍"));
     } finally {
