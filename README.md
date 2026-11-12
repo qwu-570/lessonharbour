@@ -33,7 +33,7 @@ Promoted tutors, VIP priority booking, payments, reviews, identity verification 
 - Tailwind CSS
 - Node's built-in test runner, ESLint and GitHub Actions
 
-See [Architecture](docs/ARCHITECTURE.md), [REST API](docs/API.md), [Security](SECURITY.md) and [Contributing](CONTRIBUTING.md).
+See the [Project plan](docs/PROJECT-PLAN.md), [Design evidence](docs/DESIGN-EVIDENCE.md), [Architecture](docs/ARCHITECTURE.md), [REST API](docs/API.md), [Security](SECURITY.md) and [Contributing](CONTRIBUTING.md).
 
 ## Run locally
 
