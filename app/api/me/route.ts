@@ -1,12 +1,12 @@
 import { selectRows } from "@/db/supabase";
-import { getChatGPTUser } from "@/app/chatgpt-auth";
+import { getIdentity } from "@/lib/identity";
 import { getAccount, handleApiError, json, parseStringList } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const identity = await getChatGPTUser();
+    const identity = await getIdentity();
     if (!identity) return json({ authenticated: false, account: null });
     const account = await getAccount(identity.userId);
     const rawProfile = account?.role === "tutor"

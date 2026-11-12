@@ -1,5 +1,5 @@
-import { getChatGPTUser } from "@/app/chatgpt-auth";
 import { rpc, selectRows } from "@/db/supabase";
+import { getIdentity } from "@/lib/identity";
 
 export type Account = { id: string; email: string; displayName: string; role: "student" | "tutor"; createdAt?: string; updatedAt?: string };
 
@@ -39,7 +39,7 @@ export async function readJson<T>(request: Request): Promise<T> {
 }
 
 export async function requireIdentity() {
-  const identity = await getChatGPTUser();
+  const identity = await getIdentity();
   if (!identity) throw new ApiError(401, "Sign in required");
   return identity;
 }

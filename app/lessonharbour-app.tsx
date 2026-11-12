@@ -71,7 +71,7 @@ type Message = {
 };
 type MeResponse = {
   authenticated: boolean;
-  identity?: { displayName: string; email: string };
+  identity?: { displayName: string; email: string; provider: "chatgpt" | "email" };
   account: Account | null;
   profile?: Profile | null;
   studentProfile?: StudentProfile | null;
@@ -195,13 +195,17 @@ function languagePreferenceServerSnapshot(): Locale {
 }
 
 async function api<T>(url: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
+  let response = await fetch(url, {
     ...options,
     headers: {
       ...(typeof options?.body === "string" ? { "Content-Type": "application/json" } : {}),
       ...options?.headers,
     },
   });
+  if (response.status === 401 && url !== "/api/auth") {
+    const refreshed = await fetch("/api/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "refresh" }) });
+    if (refreshed.ok) response = await fetch(url, { ...options, headers: { ...(typeof options?.body === "string" ? { "Content-Type": "application/json" } : {}), ...options?.headers } });
+  }
   const data = (await response.json()) as T & { error?: string };
   if (!response.ok) throw new Error(data.error ?? "Request failed");
   return data;
@@ -403,13 +407,13 @@ function LanguageList({ languages }: { languages: string[] }) {
   );
 }
 
-export default function LessonHarbourApp({ initialIdentity, signInPath, signOutPath }: { initialIdentity: { displayName: string; email: string } | null; signInPath: string; signOutPath: string }) {
+export default function LessonHarbourApp({ initialIdentity, signInPath, signOutPath }: { initialIdentity: { displayName: string; email: string; provider: "chatgpt" | "email" } | null; signInPath: string; signOutPath: string }) {
   const locale = useSyncExternalStore(subscribeLanguagePreference, languagePreferenceSnapshot, languagePreferenceServerSnapshot);
   const setLocale = useCallback((next: Locale) => {
     window.localStorage.setItem("lessonharbour-language", next);
     window.dispatchEvent(new Event(languagePreferenceEvent));
   }, []);
-  const [view, setView] = useState<"home" | "find" | "profile" | "dashboard">("home");
+  const [view, setView] = useState<"home" | "find" | "profile" | "dashboard" | "auth">("home");
   const [me, setMe] = useState<MeResponse>({
     authenticated: Boolean(initialIdentity),
     identity: initialIdentity ?? undefined,
@@ -512,7 +516,7 @@ export default function LessonHarbourApp({ initialIdentity, signInPath, signOutP
 
   async function book(slotId: string) {
     if (!me.authenticated) {
-      window.location.href = signInPath;
+      navigate("auth");
       return;
     }
     if (!me.account) {
@@ -537,6 +541,16 @@ export default function LessonHarbourApp({ initialIdentity, signInPath, signOutP
     } finally {
       setBusy(false);
     }
+  }
+
+  async function signOut() {
+    if (me.identity?.provider === "chatgpt") {
+      window.location.href = signOutPath;
+      return;
+    }
+    await api("/api/auth", { method: "DELETE" });
+    setMe({ authenticated: false, account: null });
+    navigate("home");
   }
 
   return (
@@ -569,14 +583,14 @@ export default function LessonHarbourApp({ initialIdentity, signInPath, signOutP
                   <button className="hidden border-0 bg-transparent text-xs font-bold sm:block" onClick={() => navigate("dashboard")}>
                     {me.account?.displayName ?? me.identity?.displayName}
                   </button>
-                  <a className="lh-button ghost" href={signOutPath} target="_top">
+                  <button className="lh-button ghost" onClick={() => void signOut()}>
                     {text("Sign out", "退出")}
-                  </a>
+                  </button>
                 </>
               ) : (
-                <a className="lh-button" href={signInPath} target="_top">
+                <button className="lh-button" onClick={() => navigate("auth")}>
                   {text("Sign in", "登录")}
-                </a>
+                </button>
               )}
             </div>
           </div>
@@ -607,8 +621,9 @@ export default function LessonHarbourApp({ initialIdentity, signInPath, signOutP
           />
         )}
         {view === "find" && <FindView tutors={tutors} subject={subject} setSubject={setSubject} location={location} setLocation={setLocation} search={() => void loadTutors()} openTutor={openTutor} busy={busy} />}
-        {view === "profile" && selectedTutor && <ProfileView tutor={selectedTutor} slots={selectedSlots} me={me} signInPath={signInPath} onDashboard={() => navigate("dashboard")} onBack={() => navigate("find")} onBook={book} busy={busy} setError={setError} setNotice={setNotice} />}
-        {view === "dashboard" && <Dashboard me={me} signInPath={signInPath} createAccount={createAccount} refreshMe={refreshMe} busy={busy} setError={setError} setNotice={setNotice} />}
+        {view === "auth" && <AuthView chatGPTSignInPath={signInPath} refreshMe={refreshMe} onSuccess={() => navigate("dashboard")} setError={setError} setNotice={setNotice} />}
+        {view === "profile" && selectedTutor && <ProfileView tutor={selectedTutor} slots={selectedSlots} me={me} onSignIn={() => navigate("auth")} onDashboard={() => navigate("dashboard")} onBack={() => navigate("find")} onBook={book} busy={busy} setError={setError} setNotice={setNotice} />}
+        {view === "dashboard" && <Dashboard me={me} onSignIn={() => navigate("auth")} createAccount={createAccount} refreshMe={refreshMe} busy={busy} setError={setError} setNotice={setNotice} />}
 
         <footer className="mt-20 bg-[var(--ink)] py-12 text-white">
           <div className="lh-shell grid gap-8 sm:grid-cols-3">
@@ -629,6 +644,32 @@ export default function LessonHarbourApp({ initialIdentity, signInPath, signOutP
       </div>
     </LocaleContext.Provider>
   );
+}
+
+function AuthView({ chatGPTSignInPath, refreshMe, onSuccess, setError, setNotice }: { chatGPTSignInPath: string; refreshMe: () => Promise<void>; onSuccess: () => void; setError: (value: string | null) => void; setNotice: (value: string | null) => void }) {
+  const { text } = useI18n();
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSubmitting(true); setError(null); setNotice(null);
+    try {
+      const result = await api<{ authenticated: boolean; verificationRequired?: boolean; message?: string }>("/api/auth", { method: "POST", body: JSON.stringify({ action: mode, email, password, displayName }) });
+      if (result.verificationRequired) {
+        setNotice(text("Registration received. Check your email, verify the address, then return to sign in.", "注册成功。请查收验证邮件，验证邮箱后返回登录。"));
+        setMode("login"); setPassword("");
+      } else {
+        await refreshMe(); onSuccess();
+      }
+    } catch (error) { setError(error instanceof Error ? error.message : text("Unable to authenticate", "无法完成登录")); }
+    finally { setSubmitting(false); }
+  }
+
+  return <main className="lh-shell py-20"><section className="lh-card mx-auto max-w-lg p-8 shadow-xl shadow-black/5"><span className="lh-kicker">{text("Secure account access", "安全账号登录")}</span><h1 className="lh-serif mt-3 text-5xl">{mode === "login" ? text("Sign in with email", "使用邮箱登录") : text("Create an account", "创建账号")}</h1><div className="mt-6 grid grid-cols-2 rounded-xl bg-[var(--cream)] p-1"><button type="button" className={`rounded-lg border-0 px-4 py-2 text-sm font-bold ${mode === "login" ? "bg-white shadow" : "bg-transparent"}`} onClick={() => setMode("login")}>{text("Sign in", "登录")}</button><button type="button" className={`rounded-lg border-0 px-4 py-2 text-sm font-bold ${mode === "signup" ? "bg-white shadow" : "bg-transparent"}`} onClick={() => setMode("signup")}>{text("Register", "注册")}</button></div><form className="mt-6 grid gap-4" onSubmit={submit}>{mode === "signup" && <label className="lh-field">{text("Display name", "显示名称")}<input required minLength={2} maxLength={60} autoComplete="name" value={displayName} onChange={event => setDisplayName(event.target.value)}/></label>}<label className="lh-field">{text("Email address", "邮箱地址")}<input required type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)}/></label><label className="lh-field">{text("Password", "密码")}<input required minLength={8} maxLength={128} type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} value={password} onChange={event => setPassword(event.target.value)}/><span className="text-[11px] font-normal text-[var(--muted)]">{text("At least 8 characters. Your password is handled by Supabase Auth and is never stored by LessonHarbour.", "至少8个字符。密码由 Supabase Auth 安全处理，LessonHarbour 不会保存。")}</span></label><button disabled={submitting} className="lh-button coral" type="submit">{submitting ? text("Please wait…", "请稍候…") : mode === "login" ? text("Sign in", "登录") : text("Create account", "创建账号")}</button></form><div className="my-6 flex items-center gap-3 text-xs text-[var(--muted)]"><span className="h-px flex-1 bg-[var(--line)]"/><span>{text("or", "或者")}</span><span className="h-px flex-1 bg-[var(--line)]"/></div><a className="lh-button ghost block w-full text-center" href={chatGPTSignInPath} target="_top">{text("Continue with ChatGPT", "使用 ChatGPT 登录")}</a></section></main>;
 }
 
 function HomeView({ tutors, location, setLocation, onFind, onDashboard }: { tutors: Tutor[]; location: string; setLocation: (value: string) => void; onFind: (subject: string, location: string) => void; onDashboard: () => void }) {
@@ -843,7 +884,7 @@ function FindView({ tutors, subject, setSubject, location, setLocation, search, 
   );
 }
 
-function ProfileView({ tutor, slots, me, signInPath, onDashboard, onBack, onBook, busy, setError, setNotice }: { tutor: Tutor; slots: Slot[]; me: MeResponse; signInPath: string; onDashboard: () => void; onBack: () => void; onBook: (id: string) => void; busy: boolean; setError: (value: string | null) => void; setNotice: (value: string | null) => void }) {
+function ProfileView({ tutor, slots, me, onSignIn, onDashboard, onBack, onBook, busy, setError, setNotice }: { tutor: Tutor; slots: Slot[]; me: MeResponse; onSignIn: () => void; onDashboard: () => void; onBack: () => void; onBook: (id: string) => void; busy: boolean; setError: (value: string | null) => void; setNotice: (value: string | null) => void }) {
   const { text, zh } = useI18n();
   const [messageBody, setMessageBody] = useState("");
   const [sending, setSending] = useState(false);
@@ -851,7 +892,7 @@ function ProfileView({ tutor, slots, me, signInPath, onDashboard, onBack, onBook
   const biography = zh ? (tutor.bioZh ?? tutor.bio) : (tutor.bioEn ?? tutor.bio);
   async function sendMessage() {
     if (!me.authenticated) {
-      window.location.href = signInPath;
+      onSignIn();
       return;
     }
     if (!me.account || me.account.role !== "student" || !me.studentProfile) {
@@ -932,7 +973,7 @@ function ProfileView({ tutor, slots, me, signInPath, onDashboard, onBack, onBook
   );
 }
 
-function Dashboard({ me, signInPath, createAccount, refreshMe, busy, setError, setNotice }: { me: MeResponse; signInPath: string; createAccount: (role: Role, name: string) => void; refreshMe: () => Promise<void>; busy: boolean; setError: (v: string | null) => void; setNotice: (v: string | null) => void }) {
+function Dashboard({ me, onSignIn, createAccount, refreshMe, busy, setError, setNotice }: { me: MeResponse; onSignIn: () => void; createAccount: (role: Role, name: string) => void; refreshMe: () => Promise<void>; busy: boolean; setError: (v: string | null) => void; setNotice: (v: string | null) => void }) {
   const { text } = useI18n();
   if (!me.authenticated)
     return (
@@ -940,9 +981,9 @@ function Dashboard({ me, signInPath, createAccount, refreshMe, busy, setError, s
         <span className="lh-kicker">{text("Protected dashboard", "受保护的个人中心")}</span>
         <h1 className="lh-serif mt-4 text-6xl">{text("Sign in to continue.", "请登录后继续。")}</h1>
         <p className="mx-auto mt-4 max-w-lg text-[var(--muted)]">{text("Authentication is handled securely. LessonHarbour never receives or stores your password.", "登录由安全的身份验证服务处理，LessonHarbour 不会接收或保存您的密码。")}</p>
-        <a className="lh-button mt-8" href={signInPath} target="_top">
+        <button className="lh-button mt-8" onClick={onSignIn}>
           {text("Sign in", "登录")}
-        </a>
+        </button>
       </main>
     );
   if (!me.account) return <Onboarding identityName={me.identity?.displayName ?? ""} onCreate={createAccount} busy={busy} />;

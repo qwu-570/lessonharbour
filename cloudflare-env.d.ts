@@ -3,6 +3,7 @@ declare namespace Cloudflare {
     DB?: D1Database;
     SUPABASE_URL?: string;
     SUPABASE_SECRET_KEY?: string;
+    SUPABASE_PUBLISHABLE_KEY?: string;
     BUCKET?: R2Bucket;
   }
 }
