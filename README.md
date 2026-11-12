@@ -2,7 +2,11 @@
 
 An open-source, bilingual tutor discovery and lesson-booking platform for families and independent tutors — with no subscription and no hidden booking fees.
 
-**Live site:** [lessonharbour-live-mvp.qling-wu.chatgpt.site](https://lessonharbour-live-mvp.qling-wu.chatgpt.site)
+## Live website
+
+**[Open LessonHarbour](https://lessonharbour-live-mvp.qling-wu.chatgpt.site/)**
+
+The public website is available at <https://lessonharbour-live-mvp.qling-wu.chatgpt.site/>.
 
 LessonHarbour is designed initially for overseas Chinese families, especially those looking for tutors in Southern England. It supports academic subjects and exam preparation (7+, 11+, 13+, GCSE and A-Level), as well as music, arts, coding and broader mentoring.
 
