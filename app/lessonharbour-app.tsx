@@ -648,16 +648,39 @@ export default function LessonHarbourApp({ initialIdentity, signInPath, signOutP
 
 function AuthView({ chatGPTSignInPath, refreshMe, onSuccess, setError, setNotice }: { chatGPTSignInPath: string; refreshMe: () => Promise<void>; onSuccess: () => void; setError: (value: string | null) => void; setNotice: (value: string | null) => void }) {
   const { text } = useI18n();
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [mode, setMode] = useState<"login" | "signup" | "forgot" | "reset">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const values = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    if (values.get("type") !== "recovery") return;
+    const accessToken = values.get("access_token");
+    const refreshToken = values.get("refresh_token");
+    if (!accessToken || !refreshToken) { setError(text("This password reset link is incomplete or expired.", "密码重置链接不完整或已过期。")); return; }
+    api("/api/auth", { method: "POST", body: JSON.stringify({ action: "recovery-session", accessToken, refreshToken }) })
+      .then(() => { window.history.replaceState({}, "", window.location.pathname); setMode("reset"); setNotice(text("Reset link verified. Choose a new password.", "重置链接已验证，请设置新密码。")); })
+      .catch(error => setError(error instanceof Error ? error.message : text("Invalid password reset link", "密码重置链接无效")));
+  }, [setError, setNotice, text]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSubmitting(true); setError(null); setNotice(null);
     try {
+      if (mode === "forgot") {
+        await api("/api/auth", { method: "POST", body: JSON.stringify({ action: "request-reset", email }) });
+        setNotice(text("If an account exists for this email, a password reset link has been sent.", "如果该邮箱已注册，密码重置邮件已经发送。"));
+        setMode("login"); return;
+      }
+      if (mode === "reset") {
+        if (password !== confirmPassword) throw new Error(text("Passwords do not match", "两次输入的密码不一致"));
+        await api("/api/auth", { method: "POST", body: JSON.stringify({ action: "reset-password", password }) });
+        setNotice(text("Password updated successfully.", "密码已成功更新。"));
+        await refreshMe(); onSuccess(); return;
+      }
       const result = await api<{ authenticated: boolean; verificationRequired?: boolean; message?: string }>("/api/auth", { method: "POST", body: JSON.stringify({ action: mode, email, password, displayName }) });
       if (result.verificationRequired) {
         setNotice(text("Registration received. Check your email, verify the address, then return to sign in.", "注册成功。请查收验证邮件，验证邮箱后返回登录。"));
@@ -669,7 +692,8 @@ function AuthView({ chatGPTSignInPath, refreshMe, onSuccess, setError, setNotice
     finally { setSubmitting(false); }
   }
 
-  return <main className="lh-shell py-20"><section className="lh-card mx-auto max-w-lg p-8 shadow-xl shadow-black/5"><span className="lh-kicker">{text("Secure account access", "安全账号登录")}</span><h1 className="lh-serif mt-3 text-5xl">{mode === "login" ? text("Sign in with email", "使用邮箱登录") : text("Create an account", "创建账号")}</h1><div className="mt-6 grid grid-cols-2 rounded-xl bg-[var(--cream)] p-1"><button type="button" className={`rounded-lg border-0 px-4 py-2 text-sm font-bold ${mode === "login" ? "bg-white shadow" : "bg-transparent"}`} onClick={() => setMode("login")}>{text("Sign in", "登录")}</button><button type="button" className={`rounded-lg border-0 px-4 py-2 text-sm font-bold ${mode === "signup" ? "bg-white shadow" : "bg-transparent"}`} onClick={() => setMode("signup")}>{text("Register", "注册")}</button></div><form className="mt-6 grid gap-4" onSubmit={submit}>{mode === "signup" && <label className="lh-field">{text("Display name", "显示名称")}<input required minLength={2} maxLength={60} autoComplete="name" value={displayName} onChange={event => setDisplayName(event.target.value)}/></label>}<label className="lh-field">{text("Email address", "邮箱地址")}<input required type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)}/></label><label className="lh-field">{text("Password", "密码")}<input required minLength={8} maxLength={128} type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} value={password} onChange={event => setPassword(event.target.value)}/><span className="text-[11px] font-normal text-[var(--muted)]">{text("At least 8 characters. Your password is handled by Supabase Auth and is never stored by LessonHarbour.", "至少8个字符。密码由 Supabase Auth 安全处理，LessonHarbour 不会保存。")}</span></label><button disabled={submitting} className="lh-button coral" type="submit">{submitting ? text("Please wait…", "请稍候…") : mode === "login" ? text("Sign in", "登录") : text("Create account", "创建账号")}</button></form><div className="my-6 flex items-center gap-3 text-xs text-[var(--muted)]"><span className="h-px flex-1 bg-[var(--line)]"/><span>{text("or", "或者")}</span><span className="h-px flex-1 bg-[var(--line)]"/></div><a className="lh-button ghost block w-full text-center" href={chatGPTSignInPath} target="_top">{text("Continue with ChatGPT", "使用 ChatGPT 登录")}</a></section></main>;
+  const heading = mode === "login" ? text("Sign in with email", "使用邮箱登录") : mode === "signup" ? text("Create an account", "创建账号") : mode === "forgot" ? text("Reset your password", "重置密码") : text("Choose a new password", "设置新密码");
+  return <main className="lh-shell py-20"><section className="lh-card mx-auto max-w-lg p-8 shadow-xl shadow-black/5"><span className="lh-kicker">{text("Secure account access", "安全账号登录")}</span><h1 className="lh-serif mt-3 text-5xl">{heading}</h1>{(mode === "login" || mode === "signup") && <div className="mt-6 grid grid-cols-2 rounded-xl bg-[var(--cream)] p-1"><button type="button" className={`rounded-lg border-0 px-4 py-2 text-sm font-bold ${mode === "login" ? "bg-white shadow" : "bg-transparent"}`} onClick={() => setMode("login")}>{text("Sign in", "登录")}</button><button type="button" className={`rounded-lg border-0 px-4 py-2 text-sm font-bold ${mode === "signup" ? "bg-white shadow" : "bg-transparent"}`} onClick={() => setMode("signup")}>{text("Register", "注册")}</button></div>}<form className="mt-6 grid gap-4" onSubmit={submit}>{mode === "signup" && <label className="lh-field">{text("Display name", "显示名称")}<input required minLength={2} maxLength={60} autoComplete="name" value={displayName} onChange={event => setDisplayName(event.target.value)}/></label>}{mode !== "reset" && <label className="lh-field">{text("Email address", "邮箱地址")}<input required type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)}/></label>}{mode !== "forgot" && <label className="lh-field">{mode === "reset" ? text("New password", "新密码") : text("Password", "密码")}<input required minLength={8} maxLength={128} type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} value={password} onChange={event => setPassword(event.target.value)}/><span className="text-[11px] font-normal text-[var(--muted)]">{text("At least 8 characters. Your password is handled securely by Supabase Auth.", "至少8个字符，密码由 Supabase Auth 安全处理。")}</span></label>}{mode === "reset" && <label className="lh-field">{text("Confirm new password", "确认新密码")}<input required minLength={8} maxLength={128} type="password" autoComplete="new-password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)}/></label>}{mode === "login" && <button type="button" className="justify-self-end border-0 bg-transparent p-0 text-xs font-bold text-[var(--teal)]" onClick={() => { setMode("forgot"); setPassword(""); }}>{text("Forgot password?", "忘记密码？")}</button>}<button disabled={submitting} className="lh-button coral" type="submit">{submitting ? text("Please wait…", "请稍候…") : mode === "login" ? text("Sign in", "登录") : mode === "signup" ? text("Create account", "创建账号") : mode === "forgot" ? text("Send reset link", "发送重置链接") : text("Update password", "更新密码")}</button>{mode === "forgot" && <button type="button" className="lh-button ghost" onClick={() => setMode("login")}>{text("Back to sign in", "返回登录")}</button>}</form>{(mode === "login" || mode === "signup") && <><div className="my-6 flex items-center gap-3 text-xs text-[var(--muted)]"><span className="h-px flex-1 bg-[var(--line)]"/><span>{text("or", "或者")}</span><span className="h-px flex-1 bg-[var(--line)]"/></div><a className="lh-button ghost block w-full text-center" href={chatGPTSignInPath} target="_top">{text("Continue with ChatGPT", "使用 ChatGPT 登录")}</a></>}</section></main>;
 }
 
 function HomeView({ tutors, location, setLocation, onFind, onDashboard }: { tutors: Tutor[]; location: string; setLocation: (value: string) => void; onFind: (subject: string, location: string) => void; onDashboard: () => void }) {
